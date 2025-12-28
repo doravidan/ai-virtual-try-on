@@ -55,6 +55,7 @@ async def get_current_user(authorization: str = Header(None)):
         payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
         return payload
     except Exception as e:
+        print(f"JWT Verification failed: {e}")
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 @app.post("/generate")
