@@ -27,7 +27,7 @@ def clean_image_url(url):
         pass
     else:
         # For others, try removing common size query params
-        params_to_remove = ['width', 'height', 'size', 'resize', 'scale']
+        params_to_remove = ['width', 'height', 'size', 'resize', 'scale', 'im']
         from urllib.parse import parse_qs, urlencode, urlunparse
         query = parse_qs(parsed.query)
         modified = False
@@ -35,6 +35,13 @@ def clean_image_url(url):
             if p in query:
                 del query[p]
                 modified = True
+        
+        # Next specific 'im' removal if it's not a query param but looks like it
+        # e.g. ?im=Resize,width=480
+        if 'im' in query:
+            del query['im']
+            modified = True
+            
         if modified:
             url = urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
 
@@ -66,7 +73,7 @@ def extract_images_from_url(url):
         
         # 1. Specialized Amazon Logic (Dynamic Images)
         if 'amazon' in url.lower():
-            # Look for the dynamic image data which contains the largest URLs
+            # ... existing amazon logic ...
             img = soup.find('img', {'id': 'landingImage'}) or soup.find('img', {'id': 'main-image'})
             if img:
                 dynamic_data = img.get('data-a-dynamic-image')
@@ -87,7 +94,24 @@ def extract_images_from_url(url):
                 if not images and img.get('src'):
                     images.append(img.get('src'))
 
-        # 2. OpenGraph / Twitter Meta Tags (Often high res)
+        # 2. Specialized Next.co.il Logic
+        if 'next.co.il' in url.lower() or 'next.co.uk' in url.lower():
+            # Look for picture sources or high-res looking URLs
+            for source in soup.find_all(['source', 'img']):
+                srcset = source.get('srcset')
+                if srcset:
+                    # srcset often looks like "url1 1x, url2 2x" or "url1 480w, url2 640w"
+                    parts = srcset.split(',')
+                    for part in parts:
+                        img_url = part.strip().split(' ')[0]
+                        if 'itemimages' in img_url.lower():
+                            images.append(img_url)
+                
+                src = source.get('src')
+                if src and 'itemimages' in src.lower():
+                    images.append(src)
+
+        # 3. OpenGraph / Twitter Meta Tags (Often high res)
         for tag in ['og:image', 'twitter:image']:
             meta = soup.find('meta', property=tag) or soup.find('meta', attrs={'name': tag})
             if meta and meta.get('content'):
@@ -129,6 +153,11 @@ def extract_images_from_url(url):
 
 if __name__ == "__main__":
     # Test
-    test_url = "https://www.amazon.com/Amazon-Essentials-Sleeve-V-Neck-T-Shirt/dp/B07F2KW7T5"
-    print(extract_images_from_url(test_url))
+    urls = [
+        "https://www.amazon.com/Amazon-Essentials-Sleeve-V-Neck-T-Shirt/dp/B07F2KW7T5",
+        "https://www.next.co.il/en/style/su819458/h85970"
+    ]
+    for test_url in urls:
+        print(f"\nTesting: {test_url}")
+        print(extract_images_from_url(test_url))
 
