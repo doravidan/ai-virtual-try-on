@@ -8,3 +8,5 @@ pillow
 openai
 tqdm
 anyio
+supabase
+python-jose[cryptography]
