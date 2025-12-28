@@ -3,27 +3,43 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "/api/index.py"
+      "destination": "api/index.py"
     },
     {
       "source": "/extract-image",
-      "destination": "/api/index.py"
+      "destination": "api/index.py"
     },
     {
       "source": "/generate",
-      "destination": "/api/index.py"
+      "destination": "api/index.py"
+    },
+    {
+      "source": "/gallery",
+      "destination": "api/index.py"
+    },
+    {
+      "source": "/checkout",
+      "destination": "api/index.py"
+    },
+    {
+      "source": "/webhook/stripe",
+      "destination": "api/index.py"
+    },
+    {
+      "source": "/user/profile",
+      "destination": "api/index.py"
     },
     {
       "source": "/favicon.ico",
-      "destination": "/api/index.py"
+      "destination": "api/index.py"
     },
     {
       "source": "/",
-      "destination": "/static/index.html"
+      "destination": "static/index.html"
     },
     {
       "source": "/(.*)",
-      "destination": "/static/$1"
+      "destination": "static/$1"
     }
   ]
 }
