@@ -10,3 +10,4 @@ tqdm
 anyio
 supabase
 python-jose[cryptography]
+stripe

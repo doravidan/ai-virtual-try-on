@@ -7,6 +7,7 @@ import shutil
 import os
 import uuid
 import time
+import stripe
 from jose import jwt
 from supabase import create_client, Client
 
@@ -14,6 +15,17 @@ from .scraper import extract_images_from_url
 from .tryon import generate_tryon_image
 
 app = FastAPI()
+
+# Stripe Config
+STRIPE_API_KEY = os.environ.get("STRIPE_API_KEY")
+STRIPE_WEBHOOK_SECRET = os.environ.get("STRIPE_WEBHOOK_SECRET")
+stripe.api_key = STRIPE_API_KEY
+
+# Pricing Plans (Stripe Price IDs)
+PLANS = {
+    "starter": {"credits": 25, "price": 999}, # $9.99
+    "pro": {"credits": 100, "price": 2499}, # $24.99
+}
 
 # Supabase Config
 SUPABASE_URL = os.environ.get("SUPABASE_URL")
@@ -109,7 +121,21 @@ async def generate(
             garment_category=garment_category
         )
 
-        # 5. Deduct Credit
+        # 5. Save to Gallery
+        try:
+            # Note: We should ideally upload images to Supabase Storage first if they are local /tmp files
+            # For now, we store the result_url from Fal directly.
+            gen_data = {
+                "user_id": user_id,
+                "base_url": base_path, # This might break on serverless if not uploaded
+                "garment_url": garment_path_or_url,
+                "result_url": result_url
+            }
+            supabase.table("generations").insert(gen_data).execute()
+        except Exception as e:
+            print(f"Gallery save failed: {e}")
+
+        # 6. Deduct Credit
         supabase.table("profiles").update({"credits": credits - 1}).eq("id", user_id).execute()
 
         return {"result_url": result_url, "remaining_credits": credits - 1}
@@ -118,6 +144,64 @@ async def generate(
         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@app.get("/gallery")
+async def get_gallery(authorization: str = Header(None)):
+    user = await get_current_user(authorization)
+    gens = supabase.table("generations").select("*").eq("user_id", user["sub"]).order("created_at", desc=True).execute()
+    return gens.data
+
+@app.post("/checkout")
+async def create_checkout_session(plan: str, authorization: str = Header(None)):
+    user = await get_current_user(authorization)
+    if plan not in PLANS:
+        raise HTTPException(status_code=400, detail="Invalid plan")
+    
+    try:
+        session = stripe.checkout.Session.create(
+            payment_method_types=['card'],
+            line_items=[{
+                'price_data': {
+                    'currency': 'usd',
+                    'product_data': {
+                        'name': f'Styler AI {plan.capitalize()} Credits',
+                    },
+                    'unit_amount': PLANS[plan]['price'],
+                },
+                'quantity': 1,
+            }],
+            mode='payment',
+            success_url=f'{os.environ.get("BASE_URL")}/?payment=success',
+            cancel_url=f'{os.environ.get("BASE_URL")}/?payment=cancel',
+            client_reference_id=user["sub"],
+            metadata={"plan": plan, "credits": PLANS[plan]["credits"]}
+        )
+        return {"url": session.url}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/webhook/stripe")
+async def stripe_webhook(request: Request):
+    payload = await request.body()
+    sig_header = request.headers.get('stripe-signature')
+
+    try:
+        event = stripe.Webhook.construct_event(payload, sig_header, STRIPE_WEBHOOK_SECRET)
+    except Exception as e:
+        return JSONResponse(status_code=400, content={"detail": str(e)})
+
+    if event['type'] == 'checkout.session.completed':
+        session = event['data']['object']
+        user_id = session['client_reference_id']
+        credits_to_add = int(session['metadata']['credits'])
+        
+        # Add credits to user profile
+        profile = supabase.table("profiles").select("credits").eq("id", user_id).single().execute()
+        if profile.data:
+            new_credits = profile.data["credits"] + credits_to_add
+            supabase.table("profiles").update({"credits": new_credits}).eq("id", user_id).execute()
+
+    return {"status": "success"}
 
 @app.get("/user/profile")
 async def get_profile(authorization: str = Header(None)):
