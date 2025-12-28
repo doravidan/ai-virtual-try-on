@@ -1,6 +1,6 @@
-// SaaS Config - REPLACE WITH YOUR ACTUAL ANON KEY
+// SaaS Config
 const SUPABASE_URL = "https://wyemnhulehoeriscqvyl.supabase.co";
-const SUPABASE_ANON_KEY = "YOUR_SUPABASE_ANON_KEY"; // Found in Supabase Settings > API
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5ZW1uaHVsZWhvZXJpc2NxdnlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5NDQ0NjEsImV4cCI6MjA4MjUyMDQ2MX0.yjOD1yuxxwFawYNOwSjOodgUxziwWfjEL62N918fnsY";
 
 const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
