@@ -65,8 +65,8 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
     const garmentUrl = document.getElementById('garmentUrl').value;
     const garmentPreviewSrc = document.getElementById('garmentPreview').src;
 
-    if (!baseFile) return alert('Please upload your photo (Base Image)');
-    if (!garmentFile && !garmentUrl) return alert('Please upload or fetch a dress photo');
+    if (!baseFile) return alert('Please upload your photo (Step 01)');
+    if (!garmentFile && !garmentUrl) return alert('Please upload or fetch a clothing photo (Step 02)');
 
     const formData = new FormData();
     formData.append('base_image', baseFile);
@@ -74,7 +74,13 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
     if (garmentFile) {
         formData.append('garment_image', garmentFile);
     } else {
-        formData.append('garment_url', garmentPreviewSrc); // Use the fetched image URL
+        // Use the fetched image URL if available
+        const currentGarmentSrc = document.getElementById('garmentPreview').src;
+        if (currentGarmentSrc && currentGarmentSrc.startsWith('http')) {
+            formData.append('garment_url', currentGarmentSrc);
+        } else {
+            return alert('Please provide a valid clothing image');
+        }
     }
 
     // Default values for removed options
@@ -102,12 +108,18 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
             document.getElementById('resultImage').src = data.result_url;
             document.getElementById('downloadBtn').href = data.result_url;
             document.getElementById('result').classList.remove('hidden');
+            
+            // Smooth scroll to result
+            setTimeout(() => {
+                document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 100);
         } else {
             throw new Error(data.detail || 'Generation failed');
         }
     } catch (err) {
         document.getElementById('error').classList.remove('hidden');
         document.getElementById('errorMsg').textContent = err.message;
+        document.getElementById('error').scrollIntoView({ behavior: 'smooth', block: 'center' });
     } finally {
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('generateBtn').disabled = false;

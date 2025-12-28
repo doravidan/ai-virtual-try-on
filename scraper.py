@@ -7,6 +7,44 @@ def is_image_url(url):
     image_extensions = ('.jpg', '.jpeg', '.png', '.webp', '.gif')
     return url.lower().endswith(image_extensions) or 'image' in url.lower()
 
+def clean_image_url(url):
+    """
+    Attempts to get the highest resolution version of an image URL.
+    Commonly strips thumbnail/size suffixes.
+    """
+    if not url:
+        return url
+    
+    # 1. Amazon high-res pattern: remove the ._AC_... part
+    # Example: https://m.media-amazon.com/images/I/71xxxxxxx._AC_SX679_.jpg -> .../I/71xxxxxxx.jpg
+    amazon_regex = r"\._AC_[A-Z0-9_,]*\."
+    url = re.sub(amazon_regex, ".", url)
+
+    # 2. General CDN size parameters
+    parsed = urlparse(url)
+    if 'amazon' in url.lower() or 'media-amazon' in url.lower():
+        # Keep clean for amazon
+        pass
+    else:
+        # For others, try removing common size query params
+        params_to_remove = ['width', 'height', 'size', 'resize', 'scale']
+        from urllib.parse import parse_qs, urlencode, urlunparse
+        query = parse_qs(parsed.query)
+        modified = False
+        for p in params_to_remove:
+            if p in query:
+                del query[p]
+                modified = True
+        if modified:
+            url = urlunparse(parsed._replace(query=urlencode(query, doseq=True)))
+
+    # 3. Shopify/Common suffix patterns
+    # Removes _small, _thumb, _100x100 before the extension
+    suffix_regex = r"(_small|_thumb|_\d+x\d+)(\.(jpg|jpeg|png|webp|gif))"
+    url = re.sub(suffix_regex, r"\2", url)
+
+    return url
+
 def extract_images_from_url(url):
     """
     Extracts clothing image(s) from a given URL.
@@ -14,7 +52,7 @@ def extract_images_from_url(url):
     If it's a shop URL, attempts to find the main product image.
     """
     if is_image_url(url):
-        return [url]
+        return [clean_image_url(url)]
 
     try:
         headers = {
@@ -26,36 +64,62 @@ def extract_images_from_url(url):
 
         images = []
         
-        # Try to find common product image containers/classes
-        # Amazon specific
+        # 1. Specialized Amazon Logic (Dynamic Images)
         if 'amazon' in url.lower():
-            # Amazon often uses 'landingImage' or 'main-image'
+            # Look for the dynamic image data which contains the largest URLs
             img = soup.find('img', {'id': 'landingImage'}) or soup.find('img', {'id': 'main-image'})
-            if img and img.get('src'):
-                images.append(img.get('src'))
-        
-        # Generic og:image
-        og_image = soup.find('meta', property='og:image')
-        if og_image and og_image.get('content'):
-            images.append(og_image.get('content'))
+            if img:
+                dynamic_data = img.get('data-a-dynamic-image')
+                if dynamic_data:
+                    import json
+                    try:
+                        # Format is {"url": [w,h], "url2": [w,h]}
+                        data = json.loads(dynamic_data)
+                        # Sort by width*height descending
+                        sorted_urls = sorted(data.items(), key=lambda x: x[1][0] * x[1][1], reverse=True)
+                        if sorted_urls:
+                            images.append(sorted_urls[0][0])
+                    except:
+                        pass
+                
+                if not images and img.get('data-old-hires'):
+                    images.append(img.get('data-old-hires'))
+                if not images and img.get('src'):
+                    images.append(img.get('src'))
 
-        # If still nothing, look for large images
+        # 2. OpenGraph / Twitter Meta Tags (Often high res)
+        for tag in ['og:image', 'twitter:image']:
+            meta = soup.find('meta', property=tag) or soup.find('meta', attrs={'name': tag})
+            if meta and meta.get('content'):
+                images.append(meta.get('content'))
+
+        # 3. Main Product Image Heuristics
         if not images:
-            all_imgs = soup.find_all('img')
-            for img in all_imgs:
-                src = img.get('src') or img.get('data-src') or img.get('data-old-hires')
-                if src:
-                    full_url = urljoin(url, src)
-                    # Simple heuristic: product images are usually larger or have 'product' in the name
-                    if 'product' in full_url.lower() or 'item' in full_url.lower():
-                        images.append(full_url)
-                        if len(images) > 3: break # Limit to first few likely candidates
+            # Look for images with 'product' or 'main' in ID/Class/Src
+            potential_imgs = soup.find_all('img', src=True)
+            for img in potential_imgs:
+                src = img.get('src')
+                img_id = str(img.get('id', '')).lower()
+                img_class = str(img.get('class', [])).lower()
+                
+                if 'product' in src.lower() or 'main' in src.lower() or 'product' in img_id or 'product' in img_class:
+                    images.append(urljoin(url, src))
+                    if len(images) > 2: break
 
-        # Cleanup and deduplicate
+        # 4. Fallback to any large images
+        if not images:
+            all_imgs = soup.find_all('img', src=True)
+            for img in all_imgs:
+                src = img.get('src')
+                images.append(urljoin(url, src))
+                if len(images) > 5: break
+
+        # Cleanup, Deduplicate, and Upgrade to High Res
         unique_images = []
-        for img in images:
-            if img not in unique_images:
-                unique_images.append(img)
+        for img_url in images:
+            cleaned = clean_image_url(img_url)
+            if cleaned not in unique_images:
+                unique_images.append(cleaned)
         
         return unique_images
 
