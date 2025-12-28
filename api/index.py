@@ -8,8 +8,8 @@ import os
 import uuid
 import time
 
-from .scraper import extract_images_from_url
-from .tryon import generate_tryon_image
+# from .scraper import extract_images_from_url
+# from .tryon import generate_tryon_image
 
 app = FastAPI()
 
@@ -25,10 +25,11 @@ os.makedirs(UPLOAD_DIR, exist_ok=True)
 @app.post("/extract-image")
 async def extract_image(url: str = Form(...)):
     try:
-        images = extract_images_from_url(url)
-        if not images:
-            raise HTTPException(status_code=400, detail="Could not extract image from this URL")
-        return {"image_url": images[0]}
+        # images = extract_images_from_url(url)
+        # if not images:
+        #     raise HTTPException(status_code=400, detail="Could not extract image from this URL")
+        # return {"image_url": images[0]}
+        return {"image_url": "test"}
     except Exception as e:
         return JSONResponse(status_code=500, content={"detail": str(e)})
 
@@ -73,13 +74,14 @@ async def generate(
         advanced_text = " ".join(advanced_options)
 
         # 4. Generate
-        result_url = generate_tryon_image(
-            base_path, 
-            garment_path_or_url, 
-            garment_category=garment_category,
-            custom_prompt=custom_prompt,
-            advanced_instructions=advanced_text
-        )
+        # result_url = generate_tryon_image(
+        #     base_path, 
+        #     garment_path_or_url, 
+        #     garment_category=garment_category,
+        #     custom_prompt=custom_prompt,
+        #     advanced_instructions=advanced_text
+        # )
+        result_url = "test"
 
         duration = time.time() - start_time
         print(f"[{request_id}] Completed in {duration:.2f}s")
