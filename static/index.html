@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Virtual Outfit Transfer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .loader {
+            border-top-color: #3498db;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        .upload-box {
+            @apply flex flex-col items-center justify-center w-full h-48 border-2 border-dashed border-gray-300 rounded-lg cursor-pointer hover:bg-gray-50 transition-colors bg-white overflow-hidden relative;
+        }
+        .preview-img {
+            @apply absolute inset-0 w-full h-full object-contain bg-white;
+        }
+    </style>
+</head>
+<body class="bg-slate-50 min-h-screen font-sans text-slate-900">
+    <div class="container mx-auto px-4 py-12 max-w-4xl">
+        <header class="text-center mb-12">
+            <h1 class="text-5xl font-extrabold tracking-tight text-slate-900 mb-4">Virtual Outfit Transfer</h1>
+            <p class="text-lg text-slate-600">Transfer any clothing design onto your photo with AI realism.</p>
+        </header>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-12">
+            <!-- Base Image Upload -->
+            <div class="space-y-4">
+                <label class="block text-sm font-bold text-slate-700 uppercase tracking-wider">1. Your Photo (Base)</label>
+                <label class="upload-box" id="baseBox">
+                    <div class="text-center p-4" id="basePlaceholder">
+                        <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                            <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                        </svg>
+                        <p class="mt-1 text-sm text-gray-600">Upload person photo</p>
+                    </div>
+                    <img id="basePreview" class="preview-img hidden" src="" />
+                    <input type="file" id="baseImage" accept="image/*" class="hidden" />
+                </label>
+            </div>
+
+            <!-- Garment Image Upload -->
+            <div class="space-y-4">
+                <label class="block text-sm font-bold text-slate-700 uppercase tracking-wider">2. Clothing Photo (Reference)</label>
+                <div class="space-y-2">
+                    <div class="flex space-x-2">
+                        <input type="url" id="garmentUrl" placeholder="Paste shop URL or Image URL" 
+                            class="flex-1 px-4 py-2 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500 text-sm">
+                        <button type="button" id="fetchUrlBtn" class="bg-slate-800 text-white px-4 py-2 rounded-md hover:bg-black transition text-sm font-medium">
+                            Fetch
+                        </button>
+                    </div>
+                    <label class="upload-box" id="garmentBox">
+                        <div class="text-center p-4" id="garmentPlaceholder">
+                            <svg class="mx-auto h-12 w-12 text-gray-400" stroke="currentColor" fill="none" viewBox="0 0 48 48">
+                                <path d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+                            </svg>
+                            <p class="mt-1 text-sm text-gray-600">Upload clothing photo</p>
+                        </div>
+                        <img id="garmentPreview" class="preview-img hidden" src="" />
+                        <input type="file" id="garmentImage" accept="image/*" class="hidden" />
+                    </label>
+                </div>
+            </div>
+        </div>
+
+        <button id="generateBtn" class="w-full bg-blue-600 text-white font-bold py-4 px-6 rounded-xl hover:bg-blue-700 transform transition active:scale-[0.98] shadow-lg shadow-blue-200 text-lg">
+            Generate New Look
+        </button>
+
+        <!-- Loading State -->
+        <div id="loading" class="hidden mt-12 text-center animate-fade-in">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-12 w-12 mx-auto mb-4"></div>
+            <p class="text-slate-600 font-medium">Processing outfits and transferring pixels...</p>
+            <p class="text-slate-400 text-sm mt-1">This usually takes about 30 seconds.</p>
+        </div>
+
+        <!-- Result Area -->
+        <div id="result" class="hidden mt-12 space-y-6">
+            <div class="bg-white p-2 rounded-2xl shadow-2xl border border-slate-100 overflow-hidden">
+                <img id="resultImage" src="" alt="Result" class="w-full h-auto rounded-xl">
+            </div>
+            <div class="flex justify-center">
+                <a id="downloadBtn" href="#" download="virtual-tryon.png" class="flex items-center space-x-2 bg-emerald-500 text-white font-bold py-3 px-8 rounded-xl hover:bg-emerald-600 transition shadow-lg shadow-emerald-100">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a2 2 0 002 2h12a2 2 0 002-2v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>
+                    <span>Download HD Image</span>
+                </a>
+            </div>
+        </div>
+
+        <div id="error" class="hidden mt-8 p-4 bg-red-50 border border-red-200 text-red-700 rounded-xl text-center">
+            <p id="errorMsg" class="font-medium"></p>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>
+
