@@ -12,9 +12,14 @@ from tryon import generate_tryon_image
 
 app = FastAPI()
 
-UPLOAD_DIR = "uploads"
+# Use /tmp for uploads on Vercel, local 'uploads' otherwise
+if os.environ.get("VERCEL"):
+    UPLOAD_DIR = "/tmp/uploads"
+else:
+    UPLOAD_DIR = "uploads"
+
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-os.makedirs("static", exist_ok=True)
+# os.makedirs("static", exist_ok=True) # Unnecessary on Vercel, static is bundled
 
 @app.post("/extract-image")
 async def extract_image(url: str = Form(...)):

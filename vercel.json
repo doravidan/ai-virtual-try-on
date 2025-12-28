@@ -1,0 +1,40 @@
+{
+  "version": 2,
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python"
+    },
+    {
+      "src": "static/**",
+      "use": "@vercel/static"
+    }
+  ],
+  "routes": [
+    {
+      "src": "/extract-image",
+      "dest": "main.py"
+    },
+    {
+      "src": "/generate",
+      "dest": "main.py"
+    },
+    {
+      "src": "/health",
+      "dest": "main.py"
+    },
+    {
+      "src": "/favicon.ico",
+      "dest": "main.py"
+    },
+    {
+      "src": "/(index.html)?",
+      "dest": "/static/index.html"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/static/$1"
+    }
+  ]
+}
+
