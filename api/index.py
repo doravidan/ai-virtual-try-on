@@ -49,13 +49,17 @@ async def get_current_user(authorization: str = Header(None)):
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
     
+    if not SUPABASE_JWT_SECRET:
+        print("ERROR: SUPABASE_JWT_SECRET is not set in environment variables")
+        raise HTTPException(status_code=500, detail="Backend configuration error: JWT Secret missing")
+
     token = authorization.split(" ")[1]
     try:
         # Verify the Supabase JWT
         payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
         return payload
     except Exception as e:
-        print(f"JWT Verification failed: {e}")
+        print(f"JWT Verification failed for token starting with {token[:10]}...: {e}")
         raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 @app.post("/generate")
