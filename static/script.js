@@ -4,6 +4,8 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 
 const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+let currentAuthMode = 'signin';
+
 // Page Navigation
 function showPage(pageId) {
     // Hide all pages
@@ -14,10 +16,36 @@ function showPage(pageId) {
     if (pageId === 'gallery') loadGallery();
 }
 
+// Open Auth Modal with mode
+function openAuthModal(mode = 'signin') {
+    currentAuthMode = mode;
+    const modal = document.getElementById('authModal');
+    const title = document.getElementById('authTitle');
+    const subtitle = document.getElementById('authSubtitle');
+    const switchText = document.getElementById('authSwitchText');
+    const emailInput = document.getElementById('authEmail');
+    const sendBtn = document.getElementById('sendMagicLink');
+
+    modal.classList.remove('hidden');
+    sendBtn.disabled = false;
+    sendBtn.textContent = 'Send Magic Link';
+    emailInput.value = '';
+
+    if (mode === 'signup') {
+        title.textContent = 'Create Account';
+        subtitle.textContent = 'Join Styler AI and get 3 free credits.';
+        switchText.innerHTML = `Already have an account? <button onclick="openAuthModal('signin')" class="text-indigo-600 font-bold underline">Sign in</button>`;
+    } else {
+        title.textContent = 'Welcome Back';
+        subtitle.textContent = 'Enter your email to sign in.';
+        switchText.innerHTML = `Don't have an account? <button onclick="openAuthModal('signup')" class="text-indigo-600 font-bold underline">Sign up</button>`;
+    }
+}
+
 // Gallery Loading
 async function loadGallery() {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) return showPage('home');
+    if (!session) return openAuthModal('signin');
 
     const grid = document.getElementById('galleryGrid');
     const empty = document.getElementById('galleryEmpty');
@@ -54,10 +82,7 @@ async function loadGallery() {
 // Payment Redirect
 async function buyCredits(plan) {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) {
-        document.getElementById('authModal').classList.remove('hidden');
-        return;
-    }
+    if (!session) return openAuthModal('signin');
 
     try {
         const resp = await fetch(`/checkout?plan=${plan}`, {
@@ -97,12 +122,12 @@ setupPreview('garmentImage', 'garmentPreview', 'garmentPlaceholder');
 // Auth State Management
 async function updateAuthState() {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const loginBtn = document.getElementById('loginBtn');
+    const loggedOutButtons = document.getElementById('loggedOutButtons');
     const userInfo = document.getElementById('userInfo');
     const creditCount = document.getElementById('creditCount');
 
     if (session) {
-        loginBtn.classList.add('auth-hidden');
+        if (loggedOutButtons) loggedOutButtons.classList.add('auth-hidden');
         userInfo.classList.remove('auth-hidden');
         
         try {
@@ -115,7 +140,7 @@ async function updateAuthState() {
             }
         } catch (e) { console.error("Profile fetch failed", e); }
     } else {
-        loginBtn.classList.remove('auth-hidden');
+        if (loggedOutButtons) loggedOutButtons.classList.remove('auth-hidden');
         userInfo.classList.add('auth-hidden');
     }
 }
@@ -123,11 +148,7 @@ async function updateAuthState() {
 // Initial Auth Check
 updateAuthState();
 
-// UI Event Listeners
-document.getElementById('loginBtn').addEventListener('click', () => {
-    document.getElementById('authModal').classList.remove('hidden');
-});
-
+// Login Flow
 document.getElementById('sendMagicLink').addEventListener('click', async () => {
     const email = document.getElementById('authEmail').value;
     const btn = document.getElementById('sendMagicLink');
@@ -155,10 +176,12 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
     window.location.reload();
 });
 
+// Close modal on outside click
 document.getElementById('authModal').addEventListener('click', (e) => {
     if (e.target.id === 'authModal') e.target.classList.add('hidden');
 });
 
+// Handle URL fetching
 document.getElementById('fetchUrlBtn').addEventListener('click', async () => {
     const url = document.getElementById('garmentUrl').value;
     if (!url) return alert('Enter a URL first');
@@ -199,10 +222,7 @@ document.getElementById('buyProBtn').addEventListener('click', () => buyCredits(
 
 document.getElementById('generateBtn').addEventListener('click', async () => {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) {
-        document.getElementById('authModal').classList.remove('hidden');
-        return;
-    }
+    if (!session) return openAuthModal('signup');
 
     const baseFile = document.getElementById('baseImage').files[0];
     const garmentFile = document.getElementById('garmentImage').files[0];
