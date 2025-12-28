@@ -65,8 +65,20 @@ async def generate(
         raise HTTPException(status_code=500, detail="Supabase not configured")
 
     # Fetch user profile
-    profile = supabase.table("profiles").select("credits").eq("id", user_id).single().execute()
-    if not profile.data or profile.data["credits"] < 1:
+    try:
+        profile = supabase.table("profiles").select("credits").eq("id", user_id).single().execute()
+        if not profile.data:
+            # Create profile if it doesn't exist (safety fallback)
+            profile_data = {"id": user_id, "email": user.get("email"), "credits": 3}
+            supabase.table("profiles").insert(profile_data).execute()
+            credits = 3
+        else:
+            credits = profile.data["credits"]
+    except Exception as e:
+        print(f"Profile check failed: {e}")
+        raise HTTPException(status_code=500, detail="Error checking user credits")
+
+    if credits < 1:
         raise HTTPException(status_code=402, detail="Insufficient credits. Please top up.")
 
     request_id = str(uuid.uuid4())
@@ -98,9 +110,9 @@ async def generate(
         )
 
         # 5. Deduct Credit
-        supabase.table("profiles").update({"credits": profile.data["credits"] - 1}).eq("id", user_id).execute()
+        supabase.table("profiles").update({"credits": credits - 1}).eq("id", user_id).execute()
 
-        return {"result_url": result_url, "remaining_credits": profile.data["credits"] - 1}
+        return {"result_url": result_url, "remaining_credits": credits - 1}
 
     except HTTPException as e:
         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})

@@ -2,12 +2,34 @@
 const SUPABASE_URL = "https://wyemnhulehoeriscqvyl.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Ind5ZW1uaHVsZWhvZXJpc2NxdnlsIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjY5NDQ0NjEsImV4cCI6MjA4MjUyMDQ2MX0.yjOD1yuxxwFawYNOwSjOodgUxziwWfjEL62N918fnsY";
 
-const supabase = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+const supabaseClient = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+// Utility to handle image preview
+function setupPreview(inputId, previewId, placeholderId) {
+    const input = document.getElementById(inputId);
+    const preview = document.getElementById(previewId);
+    const placeholder = document.getElementById(placeholderId);
+
+    input.addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+                preview.src = event.target.result;
+                preview.classList.remove('hidden');
+                placeholder.classList.add('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    });
+}
+
+setupPreview('baseImage', 'basePreview', 'basePlaceholder');
+setupPreview('garmentImage', 'garmentPreview', 'garmentPlaceholder');
 
 // Auth State Management
 async function updateAuthState() {
-    const { data: { session } } = await supabase.auth.getSession();
-    const userMenu = document.getElementById('userMenu');
+    const { data: { session } } = await supabaseClient.auth.getSession();
     const loginBtn = document.getElementById('loginBtn');
     const userInfo = document.getElementById('userInfo');
     const creditCount = document.getElementById('creditCount');
@@ -46,7 +68,7 @@ document.getElementById('sendMagicLink').addEventListener('click', async () => {
     btn.disabled = true;
     btn.textContent = "Sending...";
 
-    const { error } = await supabase.auth.signInWithOtp({
+    const { error } = await supabaseClient.auth.signInWithOtp({
         email,
         options: { emailRedirectTo: window.location.origin }
     });
@@ -61,7 +83,7 @@ document.getElementById('sendMagicLink').addEventListener('click', async () => {
 });
 
 document.getElementById('logoutBtn').addEventListener('click', async () => {
-    await supabase.auth.signOut();
+    await supabaseClient.auth.signOut();
     window.location.reload();
 });
 
@@ -70,36 +92,78 @@ document.getElementById('authModal').addEventListener('click', (e) => {
     if (e.target.id === 'authModal') e.target.classList.add('hidden');
 });
 
-// Utility to handle image preview
-function setupPreview(inputId, previewId, placeholderId) {
-// ... existing setupPreview logic ...
-}
+// Handle URL fetching
+document.getElementById('fetchUrlBtn').addEventListener('click', async () => {
+    const url = document.getElementById('garmentUrl').value;
+    if (!url) return alert('Enter a URL first');
 
-setupPreview('baseImage', 'basePreview', 'basePlaceholder');
-setupPreview('garmentImage', 'garmentPreview', 'garmentPlaceholder');
+    const fetchBtn = document.getElementById('fetchUrlBtn');
+    fetchBtn.disabled = true;
+    fetchBtn.textContent = '...';
 
-// ... existing fetchUrlBtn logic ...
+    try {
+        const formData = new FormData();
+        formData.append('url', url);
+
+        const response = await fetch('/extract-image', {
+            method: 'POST',
+            body: formData
+        });
+        const data = await response.json();
+
+        if (response.ok) {
+            const preview = document.getElementById('garmentPreview');
+            const placeholder = document.getElementById('garmentPlaceholder');
+            preview.src = data.image_url;
+            preview.classList.remove('hidden');
+            placeholder.classList.add('hidden');
+        } else {
+            alert(data.detail || 'Could not fetch image');
+        }
+    } catch (err) {
+        alert('Error: ' + err.message);
+    } finally {
+        fetchBtn.disabled = false;
+        fetchBtn.textContent = 'Fetch';
+    }
+});
 
 // Handle Generation
 document.getElementById('generateBtn').addEventListener('click', async () => {
-    const { data: { session } } = await supabase.auth.getSession();
+    const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) {
         document.getElementById('authModal').classList.remove('hidden');
         return;
     }
 
     const baseFile = document.getElementById('baseImage').files[0];
-    // ... existing validation ...
+    const garmentFile = document.getElementById('garmentImage').files[0];
+    const garmentUrl = document.getElementById('garmentUrl').value;
+    const garmentPreviewSrc = document.getElementById('garmentPreview').src;
+
+    if (!baseFile) return alert('Please upload your photo (Step 01)');
+    if (!garmentFile && (!garmentPreviewSrc || !garmentPreviewSrc.startsWith('http'))) {
+        return alert('Please upload or fetch a clothing photo (Step 02)');
+    }
 
     const formData = new FormData();
     formData.append('base_image', baseFile);
     
-    // ... existing garment logic ...
+    if (garmentFile) {
+        formData.append('garment_image', garmentFile);
+    } else {
+        formData.append('garment_url', garmentPreviewSrc);
+    }
 
-    // SaaS context
+    // Default values
+    formData.append('garment_category', 'tops');
+    formData.append('preserve_shoes', false);
+    formData.append('add_train', false);
+    formData.append('modesty_mode', false);
+    formData.append('custom_prompt', '');
+
     const headers = { 'Authorization': `Bearer ${session.access_token}` };
 
-    // UI state
     document.getElementById('loading').classList.remove('hidden');
     document.getElementById('result').classList.add('hidden');
     document.getElementById('error').classList.add('hidden');
@@ -119,25 +183,25 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
             document.getElementById('downloadBtn').href = data.result_url;
             document.getElementById('result').classList.remove('hidden');
             
-            // Update credits locally
-            document.getElementById('creditCount').textContent = `${data.remaining_credits} Credits`;
+            if (data.remaining_credits !== undefined) {
+                document.getElementById('creditCount').textContent = `${data.remaining_credits} Credits`;
+            }
             
-            // Smooth scroll to result
             setTimeout(() => {
                 document.getElementById('result').scrollIntoView({ behavior: 'smooth', block: 'start' });
             }, 100);
         } else {
-            // Handle Insufficient Credits
             if (response.status === 402) {
-                throw new Error("Insufficient credits. Buy more to continue styling!");
+                throw new Error("Insufficient credits. Please top up to continue styling!");
             }
             throw new Error(data.detail || 'Generation failed');
         }
     } catch (err) {
-// ... existing error logic ...
+        document.getElementById('error').classList.remove('hidden');
+        document.getElementById('errorMsg').textContent = err.message;
+        document.getElementById('error').scrollIntoView({ behavior: 'smooth', block: 'center' });
     } finally {
         document.getElementById('loading').classList.add('hidden');
         document.getElementById('generateBtn').disabled = false;
     }
 });
-
