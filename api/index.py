@@ -218,6 +218,16 @@ async def favicon():
 async def health():
     return {"status": "ok"}
 
+@app.post("/extract-image")
+async def extract_image(url: str = Form(...)):
+    try:
+        images = extract_images_from_url(url)
+        if not images:
+            raise HTTPException(status_code=400, detail="Could not extract image from this URL")
+        return {"image_url": images[0]}
+    except Exception as e:
+        return JSONResponse(status_code=500, content={"detail": str(e)})
+
 # app.mount("/", StaticFiles(directory="static", html=True), name="static")
 
 if __name__ == "__main__":
