@@ -8,11 +8,8 @@ let currentAuthMode = 'signin';
 
 // Page Navigation
 function showPage(pageId) {
-    // Hide all pages
     document.querySelectorAll('.page-content').forEach(p => p.classList.add('hidden'));
-    // Show target page
     document.getElementById(pageId + 'Page').classList.remove('hidden');
-    
     if (pageId === 'gallery') loadGallery();
 }
 
@@ -24,23 +21,85 @@ function openAuthModal(mode = 'signin') {
     const subtitle = document.getElementById('authSubtitle');
     const switchText = document.getElementById('authSwitchText');
     const emailInput = document.getElementById('authEmail');
-    const sendBtn = document.getElementById('sendMagicLink');
+    const passInput = document.getElementById('authPassword');
+    const submitBtn = document.getElementById('authSubmitBtn');
+    const magicBtn = document.getElementById('sendMagicLink');
 
     modal.classList.remove('hidden');
-    sendBtn.disabled = false;
-    sendBtn.textContent = 'Send Magic Link';
+    submitBtn.disabled = false;
+    magicBtn.disabled = false;
+    magicBtn.textContent = 'Send Magic Link';
     emailInput.value = '';
+    passInput.value = '';
 
     if (mode === 'signup') {
         title.textContent = 'Create Account';
         subtitle.textContent = 'Join Styler AI and get 3 free credits.';
+        submitBtn.textContent = 'Create Account';
         switchText.innerHTML = `Already have an account? <button onclick="openAuthModal('signin')" class="text-indigo-600 font-bold underline">Sign in</button>`;
     } else {
         title.textContent = 'Welcome Back';
-        subtitle.textContent = 'Enter your email to sign in.';
+        subtitle.textContent = 'Enter your email and password.';
+        submitBtn.textContent = 'Sign In';
         switchText.innerHTML = `Don't have an account? <button onclick="openAuthModal('signup')" class="text-indigo-600 font-bold underline">Sign up</button>`;
     }
 }
+
+// Auth Logic
+document.getElementById('authSubmitBtn').addEventListener('click', async () => {
+    const email = document.getElementById('authEmail').value;
+    const password = document.getElementById('authPassword').value;
+    const btn = document.getElementById('authSubmitBtn');
+
+    if (!email || !password) return alert("Enter email and password");
+    if (password.length < 6) return alert("Password must be at least 6 characters");
+
+    btn.disabled = true;
+    btn.textContent = currentAuthMode === 'signup' ? "Creating..." : "Signing in...";
+
+    let result;
+    if (currentAuthMode === 'signup') {
+        result = await supabaseClient.auth.signUp({ email, password });
+    } else {
+        result = await supabaseClient.auth.signInWithPassword({ email, password });
+    }
+
+    if (result.error) {
+        alert(result.error.message);
+        btn.disabled = false;
+        btn.textContent = currentAuthMode === 'signup' ? "Create Account" : "Sign In";
+    } else {
+        if (currentAuthMode === 'signup' && !result.data.session) {
+            alert("Signup successful! Please check your email to confirm your account before signing in.");
+            document.getElementById('authModal').classList.add('hidden');
+        } else {
+            document.getElementById('authModal').classList.add('hidden');
+            updateAuthState();
+        }
+    }
+});
+
+document.getElementById('sendMagicLink').addEventListener('click', async () => {
+    const email = document.getElementById('authEmail').value;
+    const btn = document.getElementById('sendMagicLink');
+    if (!email) return alert("Enter your email");
+
+    btn.disabled = true;
+    btn.textContent = "Sending...";
+
+    const { error } = await supabaseClient.auth.signInWithOtp({
+        email,
+        options: { emailRedirectTo: window.location.origin }
+    });
+
+    if (error) {
+        alert(error.message);
+        btn.disabled = false;
+        btn.textContent = "Send Magic Link";
+    } else {
+        btn.textContent = "Check your email!";
+    }
+});
 
 // Gallery Loading
 async function loadGallery() {
@@ -58,7 +117,7 @@ async function loadGallery() {
         const items = await resp.json();
 
         grid.innerHTML = '';
-        if (items.length === 0) {
+        if (!items || items.length === 0) {
             empty.classList.remove('hidden');
         } else {
             empty.classList.add('hidden');
@@ -148,40 +207,16 @@ async function updateAuthState() {
 // Initial Auth Check
 updateAuthState();
 
-// Login Flow
-document.getElementById('sendMagicLink').addEventListener('click', async () => {
-    const email = document.getElementById('authEmail').value;
-    const btn = document.getElementById('sendMagicLink');
-    if (!email) return alert("Enter your email");
-
-    btn.disabled = true;
-    btn.textContent = "Sending...";
-
-    const { error } = await supabaseClient.auth.signInWithOtp({
-        email,
-        options: { emailRedirectTo: window.location.origin }
-    });
-
-    if (error) {
-        alert(error.message);
-        btn.disabled = false;
-        btn.textContent = "Send Magic Link";
-    } else {
-        btn.textContent = "Check your email!";
-    }
-});
-
+// UI Event Listeners
 document.getElementById('logoutBtn').addEventListener('click', async () => {
     await supabaseClient.auth.signOut();
     window.location.reload();
 });
 
-// Close modal on outside click
 document.getElementById('authModal').addEventListener('click', (e) => {
     if (e.target.id === 'authModal') e.target.classList.add('hidden');
 });
 
-// Handle URL fetching
 document.getElementById('fetchUrlBtn').addEventListener('click', async () => {
     const url = document.getElementById('garmentUrl').value;
     if (!url) return alert('Enter a URL first');
@@ -226,6 +261,7 @@ document.getElementById('generateBtn').addEventListener('click', async () => {
 
     const baseFile = document.getElementById('baseImage').files[0];
     const garmentFile = document.getElementById('garmentImage').files[0];
+    const garmentUrl = document.getElementById('garmentUrl').value;
     const garmentPreviewSrc = document.getElementById('garmentPreview').src;
 
     if (!baseFile) return alert('Please upload your photo (Step 01)');

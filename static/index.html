@@ -256,7 +256,13 @@
             </div>
             <div class="space-y-3">
                 <input id="authEmail" type="email" placeholder="email@example.com" class="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium">
-                <button id="sendMagicLink" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:shadow-xl transition-all active:scale-95">Send Magic Link</button>
+                <input id="authPassword" type="password" placeholder="••••••••" class="w-full px-5 py-4 rounded-2xl bg-slate-50 border-none outline-none focus:ring-2 focus:ring-indigo-500/20 font-medium">
+                <button id="authSubmitBtn" class="w-full py-4 bg-indigo-600 text-white rounded-2xl font-bold hover:shadow-xl transition-all active:scale-95">Sign In</button>
+                <div class="relative py-2">
+                    <div class="absolute inset-0 flex items-center"><span class="w-full border-t border-slate-100"></span></div>
+                    <span class="relative bg-white px-4 text-[10px] font-bold text-slate-300 uppercase tracking-[0.2em]">OR</span>
+                </div>
+                <button id="sendMagicLink" class="w-full py-3 border-2 border-slate-100 text-slate-600 rounded-2xl font-bold hover:bg-slate-50 transition-all active:scale-95 text-sm">Send Magic Link</button>
             </div>
             <div class="pt-2">
                 <p id="authSwitchText" class="text-sm text-slate-500 font-medium">
