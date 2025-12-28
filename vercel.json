@@ -3,19 +3,19 @@
   "rewrites": [
     {
       "source": "/health",
-      "destination": "main.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/extract-image",
-      "destination": "main.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/generate",
-      "destination": "main.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/favicon.ico",
-      "destination": "main.py"
+      "destination": "/api/index.py"
     },
     {
       "source": "/",

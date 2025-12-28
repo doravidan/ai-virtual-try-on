@@ -5,8 +5,13 @@ from fastapi.responses import Response
 import uvicorn
 import shutil
 import os
+import sys
 import uuid
 import time
+
+# Ensure imports from the root directory work on Vercel
+sys.path.append(os.path.dirname(os.path.dirname(__file__)))
+
 from scraper import extract_images_from_url
 from tryon import generate_tryon_image
 
