@@ -11,10 +11,6 @@ from PIL import Image, ImageOps
 
 load_dotenv()
 
-_BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-_STATIC_GENERATED_DIR = os.path.join(_BASE_DIR, "static", "generated")
-os.makedirs(_STATIC_GENERATED_DIR, exist_ok=True)
-
 _FAL_KEY = os.getenv("FAL_KEY") or os.getenv("FAL_API_KEY")
 _FAL_BASE_URL = os.getenv("FAL_BASE_URL", "https://fal.run")
 
