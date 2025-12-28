@@ -1,4 +1,4 @@
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Header, Request
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from fastapi.responses import Response
@@ -7,11 +7,23 @@ import shutil
 import os
 import uuid
 import time
+from jose import jwt
+from supabase import create_client, Client
 
 from .scraper import extract_images_from_url
 from .tryon import generate_tryon_image
 
 app = FastAPI()
+
+# Supabase Config
+SUPABASE_URL = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_ROLE_KEY = os.environ.get("SUPABASE_SERVICE_ROLE_KEY")
+SUPABASE_JWT_SECRET = os.environ.get("SUPABASE_JWT_SECRET") # Found in Supabase Settings > API
+
+# Initialize Supabase Admin Client
+supabase: Client = None
+if SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY:
+    supabase = create_client(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY)
 
 # Use /tmp for uploads on Vercel, local 'uploads' otherwise
 if os.environ.get("VERCEL"):
@@ -20,17 +32,18 @@ else:
     UPLOAD_DIR = "uploads"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
-# os.makedirs("static", exist_ok=True) # Unnecessary on Vercel, static is bundled
 
-@app.post("/extract-image")
-async def extract_image(url: str = Form(...)):
+async def get_current_user(authorization: str = Header(None)):
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+    
+    token = authorization.split(" ")[1]
     try:
-        images = extract_images_from_url(url)
-        if not images:
-            raise HTTPException(status_code=400, detail="Could not extract image from this URL")
-        return {"image_url": images[0]}
+        # Verify the Supabase JWT
+        payload = jwt.decode(token, SUPABASE_JWT_SECRET, algorithms=["HS256"], audience="authenticated")
+        return payload
     except Exception as e:
-        return JSONResponse(status_code=500, content={"detail": str(e)})
+        raise HTTPException(status_code=401, detail=f"Invalid token: {str(e)}")
 
 @app.post("/generate")
 async def generate(
@@ -41,19 +54,31 @@ async def generate(
     preserve_shoes: bool = Form(False),
     add_train: bool = Form(False),
     modesty_mode: bool = Form(False),
-    custom_prompt: str = Form("")
+    custom_prompt: str = Form(""),
+    authorization: str = Header(None)
 ):
-    request_id = str(uuid.uuid4())
-    start_time = time.time()
-    print(f"[{request_id}] Starting generation request...")
+    # 1. Auth & Credit Check
+    user = await get_current_user(authorization)
+    user_id = user["sub"]
+    
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
 
+    # Fetch user profile
+    profile = supabase.table("profiles").select("credits").eq("id", user_id).single().execute()
+    if not profile.data or profile.data["credits"] < 1:
+        raise HTTPException(status_code=402, detail="Insufficient credits. Please top up.")
+
+    request_id = str(uuid.uuid4())
+    # ... (rest of the logic remains similar but with credit deduction)
+    
     try:
-        # 1. Save base image
+        # 2. Save base image
         base_path = os.path.join(UPLOAD_DIR, f"{request_id}_base_{base_image.filename}")
         with open(base_path, "wb") as buffer:
             shutil.copyfileobj(base_image.file, buffer)
 
-        # 2. Get garment image path or URL
+        # 3. Get garment image
         garment_path_or_url = ""
         if garment_image:
             garment_path = os.path.join(UPLOAD_DIR, f"{request_id}_garment_{garment_image.filename}")
@@ -63,38 +88,30 @@ async def generate(
         elif garment_url:
             garment_path_or_url = garment_url
         else:
-            raise HTTPException(status_code=400, detail="No garment image or URL provided")
-
-        # 3. Construct advanced options string
-        advanced_options = []
-        if preserve_shoes: advanced_options.append("Preserve the original shoes from the base image.")
-        if add_train: advanced_options.append("Add a long elegant train to the dress.")
-        if modesty_mode: advanced_options.append("Apply modesty: ensure a higher neckline and longer sleeves if necessary.")
-        advanced_text = " ".join(advanced_options)
+            raise HTTPException(status_code=400, detail="No garment image provided")
 
         # 4. Generate
         result_url = generate_tryon_image(
             base_path, 
             garment_path_or_url, 
-            garment_category=garment_category,
-            custom_prompt=custom_prompt,
-            advanced_instructions=advanced_text
+            garment_category=garment_category
         )
 
-        duration = time.time() - start_time
-        print(f"[{request_id}] Completed in {duration:.2f}s")
+        # 5. Deduct Credit
+        supabase.table("profiles").update({"credits": profile.data["credits"] - 1}).eq("id", user_id).execute()
 
-        return {"result_url": result_url}
+        return {"result_url": result_url, "remaining_credits": profile.data["credits"] - 1}
 
     except HTTPException as e:
-        # Preserve intended status codes (e.g. auth failures, bad input)
-        print(f"[{request_id}] HTTP error {e.status_code}: {e.detail}")
         return JSONResponse(status_code=e.status_code, content={"detail": e.detail})
     except Exception as e:
-        print(f"[{request_id}] Error: {e}")
-        import traceback
-        traceback.print_exc()
         return JSONResponse(status_code=500, content={"detail": str(e)})
+
+@app.get("/user/profile")
+async def get_profile(authorization: str = Header(None)):
+    user = await get_current_user(authorization)
+    profile = supabase.table("profiles").select("*").eq("id", user["sub"]).single().execute()
+    return profile.data
 
 @app.get("/favicon.ico")
 async def favicon():
