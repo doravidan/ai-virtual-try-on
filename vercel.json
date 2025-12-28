@@ -1,40 +1,29 @@
 {
   "version": 2,
-  "builds": [
+  "rewrites": [
     {
-      "src": "main.py",
-      "use": "@vercel/python"
+      "source": "/health",
+      "destination": "main.py"
     },
     {
-      "src": "static/**",
-      "use": "@vercel/static"
-    }
-  ],
-  "routes": [
-    {
-      "src": "/extract-image",
-      "dest": "main.py"
+      "source": "/extract-image",
+      "destination": "main.py"
     },
     {
-      "src": "/generate",
-      "dest": "main.py"
+      "source": "/generate",
+      "destination": "main.py"
     },
     {
-      "src": "/health",
-      "dest": "main.py"
+      "source": "/favicon.ico",
+      "destination": "main.py"
     },
     {
-      "src": "/favicon.ico",
-      "dest": "main.py"
+      "source": "/",
+      "destination": "/static/index.html"
     },
     {
-      "src": "/(index.html)?",
-      "dest": "/static/index.html"
-    },
-    {
-      "src": "/(.*)",
-      "dest": "/static/$1"
+      "source": "/(.*)",
+      "destination": "/static/$1"
     }
   ]
 }
-
